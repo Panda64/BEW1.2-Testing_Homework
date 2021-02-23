@@ -4,7 +4,7 @@ import unittest
 from datetime import date
  
 from books_app import app, db, bcrypt
-from books_app.models import Book, Author, User, Audience
+from books_app.models import Book, Author, User, Audience, Genre
 
 """
 Run these tests with the command:
@@ -111,30 +111,41 @@ class MainTests(unittest.TestCase):
 
     def test_book_detail_logged_out(self):
         """Test that the book appears on its detail page."""
-        # TODO: Use helper functions to create books, authors, user
+        # Set up
+        create_books()
+        create_user()
 
-        # TODO: Make a GET request to the URL /book/1, check to see that the
-        # status code is 200
+        # Make a GET request
+        response = self.app.get('/book/1', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
 
-        # TODO: Check that the response contains the book's title, publish date,
-        # and author's name
+        # Check that page contains all of the things we expect
+        response_text = response.get_data(as_text=True)
+        self.assertIn('To Kill a Mockingbird', response_text)
+        self.assertIn('July 11, 1960', response_text)
+        self.assertIn('Harper Lee', response_text)
 
-        # TODO: Check that the response does NOT contain the 'Favorite' button
-        # (it should only be shown to logged in users)
-        pass
+       # Check that the page doesn't contain things we don't expect
+        # (these should be shown only to logged in users)
+        self.assertNotIn('Favorite', response_text)
 
     def test_book_detail_logged_in(self):
         """Test that the book appears on its detail page."""
-        # TODO: Use helper functions to create books, authors, user, & to log in
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
 
-        # TODO: Make a GET request to the URL /book/1, check to see that the
-        # status code is 200
+       # Make a GET request
+        response = self.app.get('/book/1', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
 
-        # TODO: Check that the response contains the book's title, publish date,
-        # and author's name
-
-        # TODO: Check that the response contains the 'Favorite' button
-        pass
+        # Check that page contains all of the things we expect
+        response_text = response.get_data(as_text=True)
+        self.assertIn('To Kill a Mockingbird', response_text)
+        self.assertIn('July 11, 1960', response_text)
+        self.assertIn('Harper Lee', response_text)
+        self.assertIn('Favorite', response_text)
 
     def test_update_book(self):
         """Test updating a book."""
@@ -199,36 +210,84 @@ class MainTests(unittest.TestCase):
 
     def test_create_author(self):
         """Test creating an author."""
-        # TODO: Make a POST request to the /create_author route
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
+        
+        # Make POST request with data
+        post_data = {
+            'name': 'test author name',
+            'biography': 'this is a test biography',
+            'books': [],
+        }
+        self.app.post('/create_author', data=post_data)
 
-        # TODO: Verify that the author was updated in the database
-        pass
+        # Make sure author was updated as we'd expect
+        created_author = Author.query.filter_by(name='test author name').one()
+        self.assertIsNotNone(created_author)
+        self.assertEqual(created_author.biography, 'this is a test biography')
 
     def test_create_genre(self):
-        # TODO: Make a POST request to the /create_genre route, 
+        """Test creating a genre."""
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
+        
+        # Make POST request with data
+        post_data = {
+            'name': 'test genre name',
+            'books': [],
+        }
+        self.app.post('/create_genre', data=post_data)
 
-        # TODO: Verify that the genre was updated in the database
-        pass
+        # Make sure genre was updated as we'd expect
+        created_genre = Genre.query.filter_by(name='test genre name').one()
+        self.assertIsNotNone(created_genre)
+        self.assertEqual(created_genre.name, 'test genre name')
 
     def test_profile_page(self):
-        # TODO: Make a GET request to the /profile/1 route
+        """Test that the profile page returns all of the appropriate user info."""
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
 
-        # TODO: Verify that the response shows the appropriate user info
-        pass
+        # Make a GET request
+        response = self.app.get('/profile/me1', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+        # Check that page contains all of the things we expect
+        response_text = response.get_data(as_text=True)
+        self.assertIn('me1', response_text)
 
     def test_favorite_book(self):
-        # TODO: Login as the user me1
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
 
-        # TODO: Make a POST request to the /favorite/1 route
+        # Make POST request
+        self.app.post('/favorite/1')
 
-        # TODO: Verify that the book with id 1 was added to the user's favorites
-        pass
+        # Make sure users favorite books contain what we expect
+        user = User.query.filter_by(username='me1').one()
+        self.assertIsNotNone(user.favorite_books)
+        self.assertEqual(user.favorite_books[0].id, 1)
 
     def test_unfavorite_book(self):
-        # TODO: Login as the user me1, and add book with id 1 to me1's favorites
+        # Set up
+        create_books()
+        create_user()
+        login(self.app, 'me1', 'password')
 
-        # TODO: Make a POST request to the /unfavorite/1 route
+        # Make POST request to add book with id 1 to the users favorites
+        self.app.post('/favorite/1')
 
-        # TODO: Verify that the book with id 1 was removed from the user's 
-        # favorites
-        pass
+        # Make POST request to remove book with id 1 to the users favorites
+        self.app.post('/unfavorite/1')
+
+       # Make sure users favorite books contain what we expect
+        user = User.query.filter_by(username='me1').one()
+        self.assertEqual(user.favorite_books, [])
